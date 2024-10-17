@@ -26,7 +26,7 @@ class Bank_account:
         self.txn_database = pd.DataFrame(columns= ['Transaction number','Type of transaction','Amount','Balance'])
         txn = pd.DataFrame([{
             'Transaction number': self.txn_number,
-            'Type of transaction' : 'Debit',
+            'Type of transaction' : 'Deposit',
             'Amount' : deposit,
             'Balance' : deposit
         }])
@@ -53,7 +53,7 @@ class Bank_account:
         Bank_account.bank_db.at[self.account_number, 'Balance'] = self.balance
         txn = pd.DataFrame([{
             'Transaction number': self.txn_number,
-            'Type of transaction' : 'Credit',
+            'Type of transaction' : 'Deposit',
             'Amount' : add_amount,
             'Balance' : self.balance
         }])
@@ -66,7 +66,7 @@ class Bank_account:
             Bank_account.bank_db.at[self.account_number, 'Balance'] = self.balance
             txn = pd.DataFrame([{
                 'Transaction number': self.txn_number,
-                'Type of transaction' : 'Debit',
+                'Type of transaction' : 'Withdrawl',
                 'Amount' : withdraw_amount,
                 'Balance' : self.balance
             }])
