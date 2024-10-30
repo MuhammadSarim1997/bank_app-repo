@@ -1,15 +1,19 @@
 import tkinter as tk
 import ttkbootstrap as ttk
 import bank_class as bc  # Assuming your Bank_account class is in bank_class.py
+from Database_cred_and_func import conn,save_account_to_db,save_transaction_to_db,get_account_details
 
 # Initialize all global variables
-accounts = {}
-current_user_email = None
+account_details = {}
+account = None
+txn_table = None
 
 # Initialize App
 App = ttk.Window(themename='journal')
 App.title('RCB Desktop Banking App')
-App.geometry('1500x1300')
+App.geometry('500x500')
+
+#temp dataframe for sign_up
 
 # Initialize variables AFTER initializing the root window
 input_first_name = tk.StringVar()
@@ -18,11 +22,11 @@ input_email_address = tk.StringVar()
 input_password = tk.StringVar()
 input_deposit = tk.StringVar()
 lg_email_address = tk.StringVar()
+lg_account_number = tk.StringVar()  # Now login uses account number instead of email
 lg_password = tk.StringVar()
 Wd_input = tk.StringVar()
 ad_input = tk.StringVar()
-table = None 
-
+table = None
 
 # Function to change pages
 def show_frame(frame_to_show, frame_to_hide):
@@ -42,80 +46,69 @@ def handle_inputs(action, next_page, prev_page, **inputs):
     add_funds_input = int(inputs.get('add_funds_input').get()) if inputs.get('add_funds_input') else None
     table = inputs.get('table')
 
-    # Accesing global variables
-    global accounts  
-    global current_user_email
+    # Accessing global variables
+    global account
+    global account_details
+    global txn_table
 
     if action == 'create_account':
         if account_type == "Current Account":
-            new_account = bc.Bank_account(first_name, last_name, email, password, deposit)
+            save_account_to_db(first_name, last_name, email, password, deposit,'Current_Account')
         elif account_type == "Savings Account":
-            new_account = bc.Saving_account(first_name, last_name, email, password, deposit)
-        accounts[email] = new_account
+            save_account_to_db(first_name, last_name, email, password, deposit,'Saving_account')
 
         # Update the button to go to home page after sign-up
         confirmation_button.config(text='Go to homepage', command=lambda: show_frame(home_page, confirmation))
-        confirmation_text.config(text=f'Congratulations {first_name}! You have successfully opened a {account_type}. Your balance is {accounts[email].balance}')
+        confirmation_text.config(text=f'Congratulations {first_name}! You have successfully opened a {account_type}. Your balance is {deposit}')
         show_frame(next_page, prev_page)
     
     elif action == 'sign_in':
-        current_user_email = email
-        account = accounts.get(email)
-        if account and account.password == password:
-            show_frame(menu_page, prev_page)
-        else:
-            lg_try_again.config(text="Email or password incorrect. Please try again.")
+        account_details = get_account_details(email,password)
+        if not account_details :
+            lg_try_again.config(text="Account number or password incorrect. Please try again.")
             lg_try_again.pack()
+        else:
+            if account_details['account_type'] == 'Current_Account' :
+                account = bc.Bank_account(account_details['first_name'],account_details['last_name'],account_details['email'],account_details['password'],account_details['balance'])
+            elif account_details['account_type'] == 'Saving_account' :
+                account = bc.Saving_account(account_details['first_name'],account_details['last_name'],account_details['email'],account_details['password'],account_details['balance'])
+            show_frame(menu_page, prev_page)
 
     elif action == 'Withdraw':
-        # print(account)
-        account = accounts.get(current_user_email)
-        # if account:
-        account.withdraw_money(withdraw_input)
-        # Update the button to go to menu after withdrawal
-        confirmation_button.config(text='Go to menu', command=lambda: show_frame(menu_page, confirmation))
-        confirmation_text.config(text=f'You have withdrawn {withdraw_input}. Your new balance is {account.balance}')
-        show_frame(next_page, prev_page)
+            account.withdraw_money(withdraw_input)
+            confirmation_button.config(text='Go to menu', command=lambda: show_frame(menu_page, confirmation))
+            confirmation_text.config(text=f'You have withdrawn {withdraw_input}. Your new balance is {account.balance}')
+            show_frame(next_page, prev_page)
 
     elif action == 'add_funds':
-        account = accounts.get(current_user_email)
-        if account:
             account.add_money(add_funds_input)
-            # Update the button to go to menu after adding funds
             confirmation_button.config(text='Go to menu', command=lambda: show_frame(menu_page, confirmation))
             confirmation_text.config(text=f'You have added {add_funds_input}. Your new balance is {account.balance}')
             show_frame(next_page, prev_page)
+
+    elif action == 'Show_txn':
+        table = account.get_txns()
+        display_transactions(table,txn_table)
+        show_frame(next_page, prev_page)
     
-    if action == 'Show_txn':
-        print(accounts.get(current_user_email).get_txns())
-        display_transactions(table)
+    elif action == 'log_out':
+        account = None
         show_frame(next_page, prev_page)
 
 # Function to display the transaction table
-def display_transactions(txn_table):
-# Clear the treeview for fresh data
-    for row in txn_table.get_children():
-        txn_table.delete(row)
+def display_transactions(table,txn_table):
 
-    # Fetch transactions for the current user (assuming current_user_email is set)
-    account = accounts.get(current_user_email)
-    if account:
-        txns_df = account.get_txns()  # Assuming this returns a pandas DataFrame
+    # Insert rows into the Treeview
+    for _, row in table.iterrows():
+        txn_table.insert("", "end", values=list(row))
 
-        # Insert data into the treeview
-        for index, row in txns_df.iterrows():
-            txn_table.insert('', 'end', values=list(row))
-
-# Function to show the transactions page and load transactions
-# def show_txns_page():
-#     display_transactions()
-#     show_frame(Txns_page, menu_page)
+    # Pack the Treeview widget to fill the window
+    txn_table.pack(fill=tk.BOTH, expand=True)
 
 
 # Function to display the balance of the logged-in user
 def display_balance():
     # Assuming the user's email is stored globally once logged in
-    account = accounts.get(lg_email_address.get())
     if account:
         bal_value.config(text=f"${account.balance}")
 
@@ -220,7 +213,13 @@ menu_button_txn = ttk.Button(menu_page, text='Transactions', command=lambda :
         'Show_txn',
         Txns_page,          # Page to show
         menu_page,         # Page to hide
-        table=txn_table,
+        table=txn_table
+))
+menu_log_out_button = ttk.Button(menu_page, text='Log Out', command=lambda : 
+      handle_inputs(
+        'log_out',
+        home_page,          # Page to show
+        menu_page        # Page to hide
 ))
 
 #Pack items on menu
@@ -229,6 +228,7 @@ menu_button_withdraw.pack()
 menu_button_add_funds.pack()
 menu_button_balance.pack()
 menu_button_txn.pack()
+menu_log_out_button.pack(side = 'bottom')
 
 #withdraw page
 Withdraw_Page = ttk.Frame(master=App)
@@ -282,32 +282,28 @@ bal_confirmation_button.pack()
 
 # Txns_page
 Txns_page = ttk.Frame(master=App)
-txn_table = ttk.Treeview(Txns_page, columns=('Transaction Number', 'Description', 'Amount','Balance'), show='headings')
+txn_table = ttk.Treeview(Txns_page, columns=('Transaction Number', 'Description', 'Amount'), show='headings')
 txn_table.heading('Transaction Number', text='Transaction Number')
 txn_table.heading('Description', text='Description')
 txn_table.heading('Amount', text='Amount')
-txn_table.heading('Balance', text='Balance')
+
 
 # Center-align the columns
 txn_table.column('Transaction Number', anchor='center')
 txn_table.column('Description', anchor='center')
 txn_table.column('Amount', anchor='center')
-txn_table.column('Balance', anchor='center')
 
 
-
+# Txns_page
 scrollbar = ttk.Scrollbar(Txns_page, orient='vertical', command=txn_table.yview)
 txn_table.configure(yscroll=scrollbar.set)
 back_to_menu_button = ttk.Button(Txns_page, text="Back to Menu", command=lambda: show_frame(menu_page, Txns_page))
-# display_transactions()
+
 
 # pack widgets on txn page
-txn_table.pack(fill='both', expand=True, side='left')
+# txn_table.pack(fill='both', expand=True, side='left')
 scrollbar.pack(fill='y', side='right')
 back_to_menu_button.pack(pady=10)
-
-# Button on the menu page to go to the transactions page
-# menu_button_txn = ttk.Button(menu_page, text='Transactions', command=show_txns_page)
 
 # run loop
 App.mainloop()

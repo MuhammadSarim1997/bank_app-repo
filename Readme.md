@@ -1,4 +1,1 @@
-This repositry will contain all the code to construct a bank app using OOP principles 
-There are some changes
-some more changes
-make even more changes
+This branch contain teh version of the app that using postgress sql as a DB
