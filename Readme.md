@@ -1,1 +1,1 @@
-This branch contain teh version of the app that using postgress sql as a DB
+This branch contain the version of the app that using postgress sql as a DB
